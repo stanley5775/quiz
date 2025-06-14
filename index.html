@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth" >
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dynamic Quiz</title>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Material Icons CDN -->
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  /* Custom scroll bar for better UX */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #a78bfa; /* violet-400 */
+    border-radius: 8px;
+  }
+  /* Animation for fade in */
+  .fade-enter {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  .fade-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  /* Timer warning animation */
+  @keyframes pulseRed {
+    0%, 100% {
+      color: #ef4444; /* red-500 */
+      text-shadow: 0 0 8px #ef4444;
+    }
+    50% {
+      color: #fca5a5; /* red-300 */
+      text-shadow: 0 0 12px #fca5a5;
+    }
+  }
+  .timer-warning {
+    animation: pulseRed 1.2s infinite;
+  }
+</style>
+</head>
+<body class="bg-white text-gray-700 font-sans min-h-screen flex flex-col">
+
+<header class="sticky top-0 bg-white border-b border-gray-200 shadow-sm z-30">
+  <nav class="max-w-5xl mx-auto flex items-center justify-between p-4 sm:p-6">
+    <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-indigo-600 select-none">Dynamic Quiz</h1>
+  </nav>
+</header>
+
+<main class="flex-grow flex items-center justify-center px-4 sm:px-6 py-12 max-w-5xl mx-auto w-full">
+  <section id="quiz-container" class="w-full max-w-3xl bg-white rounded-xl shadow-md p-8 sm:p-12 flex flex-col space-y-8">
+    <!-- Quiz content will be dynamically injected here -->
+  </section>
+</main>
+
+<footer class="bg-gray-50 border-t border-gray-200 text-center text-gray-500 py-6 text-sm select-none">
+  &copy; 2024 Dynamic Quiz. All rights reserved.
+</footer>
+
+<script>
+  // Quiz questions data
+  const questions = [
+    {
+      question: "What is the capital of France?",
+      options: ["Berlin", "Paris", "Rome", "Madrid"],
+      answerIndex: 1
+    },
+    {
+      question: "Which planet is known as the Red Planet?",
+      options: ["Venus", "Earth", "Mars", "Jupiter"],
+      answerIndex: 2
+    },
+    {
+      question: "What is the chemical symbol for Water?",
+      options: ["O2", "H20", "H₂O", "HO2"],
+      answerIndex: 2
+    },
+    {
+      question: "Who wrote 'Romeo and Juliet'?",
+      options: ["William Shakespeare", "Charles Dickens", "Leo Tolstoy", "Mark Twain"],
+      answerIndex: 0
+    },
+    {
+      question: "What is the largest ocean on Earth?",
+      options: ["Atlantic Ocean", "Indian Ocean", "Arctic Ocean", "Pacific Ocean"],
+      answerIndex: 3
+    },
+    {
+      question: "Which language is primarily used for Android app development?",
+      options: ["Swift", "Java", "Python", "C#"],
+      answerIndex: 1
+    },
+    {
+      question: "What year did the internet become publicly available?",
+      options: ["1983", "1991", "2000", "1975"],
+      answerIndex: 1
+    },
+    {
+      question: "Which element has the atomic number 1?",
+      options: ["Helium", "Hydrogen", "Oxygen", "Carbon"],
+      answerIndex: 1
+    },
+    {
+      question: "What is the powerhouse of the cell?",
+      options: ["Nucleus", "Mitochondria", "Ribosome", "Golgi Apparatus"],
+      answerIndex: 1
+    },
+    {
+      question: "In which country is the Great Pyramid of Giza located?",
+      options: ["Egypt", "Mexico", "Peru", "Sudan"],
+      answerIndex: 0
+    }
+  ];
+
+  // Constants
+  const QUESTION_MARKS = 5;
+  const QUIZ_TIME_SECONDS = 60; // 1 minute timer
+
+  // State variables
+  let shuffledQuestions = [];
+  let currentQuestionIndex = 0;
+  let score = 0;
+  let answeredQuestions = 0;
+  let timerInterval = null;
+  let timeLeft = QUIZ_TIME_SECONDS;
+
+  // Element references
+  const quizContainer = document.getElementById('quiz-container');
+
+  // Utility: shuffle array in place (Fisher-Yates)
+  function shuffleArray(array) {
+    const arr = array.slice();
+    for (let i = arr.length -1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i+1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  // Format seconds into mm:ss
+  function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2,'0')}`;
+  }
+
+  // Create icon element with material icon text
+  function createIcon(name, additionalClasses="") {
+    const span = document.createElement('span');
+    span.className = `material-icons align-middle select-none ${additionalClasses}`;
+    span.textContent = name;
+    return span;
+  }
+
+  // Render quiz start UI
+  function renderStart() {
+    quizContainer.innerHTML = '';
+    const startCard = document.createElement('div');
+    startCard.className = 'text-center space-y-6';
+    const title = document.createElement('h2');
+    title.className = 'text-4xl font-extrabold text-indigo-700';
+    title.textContent = 'Welcome to the Dynamic Quiz!';
+    const desc = document.createElement('p');
+    desc.className = 'text-gray-600 text-lg max-w-xl mx-auto';
+    desc.textContent = 'Test your knowledge with random questions. You have 1 minute to answer as many as you can. Skip questions and score 5 marks for each correct answer. Good luck!';
+    const startBtn = document.createElement('button');
+    startBtn.className = 'inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-4 focus:ring-indigo-400 shadow';
+    startBtn.textContent = 'Start Quiz';
+    startBtn.addEventListener('click', startQuiz);
+
+    startCard.appendChild(title);
+    startCard.appendChild(desc);
+    startCard.appendChild(startBtn);
+
+    quizContainer.appendChild(startCard);
+  }
+
+  // Render result UI
+  function renderResults() {
+    quizContainer.innerHTML = '';
+    const resultCard = document.createElement('div');
+    resultCard.className = 'text-center space-y-6 p-4';
+
+    const title = document.createElement('h2');
+    title.className = 'text-4xl font-extrabold text-indigo-700';
+    title.textContent = 'Quiz Complete!';
+
+    const scoreText = document.createElement('p');
+    scoreText.className = 'text-lg text-gray-700 font-semibold';
+    scoreText.textContent = `You answered ${answeredQuestions} question${answeredQuestions !== 1 ? 's' : ''} with ${score/QUESTION_MARKS} correct. Total Score: ${score}`;
+
+    // Compute remark
+    const remark = document.createElement('p');
+    remark.className = 'text-indigo-600 text-xl font-medium';
+    const percentCorrect = (score / (shuffledQuestions.length * QUESTION_MARKS)) * 100;
+    if (percentCorrect >= 80) {
+      remark.textContent = 'Excellent work! You really know your stuff.';
+    } else if (percentCorrect >= 50) {
+      remark.textContent = 'Good effort! A little more practice will get you there.';
+    } else {
+      remark.textContent = 'Keep trying! Practice makes perfect.';
+    }
+
+    const restartBtn = document.createElement('button');
+    restartBtn.className = 'inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-4 focus:ring-indigo-400 shadow';
+    restartBtn.textContent = 'Try Again';
+    restartBtn.addEventListener('click', renderStart);
+
+    resultCard.appendChild(title);
+    resultCard.appendChild(scoreText);
+    resultCard.appendChild(remark);
+    resultCard.appendChild(restartBtn);
+
+    quizContainer.appendChild(resultCard);
+  }
+
+  // Render a question card
+  function renderQuestion() {
+    quizContainer.innerHTML = '';
+    const card = document.createElement('article');
+    card.className = 'flex flex-col space-y-6';
+
+    // Timer section
+    const timerWrapper = document.createElement('div');
+    timerWrapper.className = 'flex items-center space-x-2 text-gray-700 font-semibold text-lg select-none';
+    const timerIcon = createIcon('timer', 'text-indigo-600');
+    const timerText = document.createElement('span');
+    timerText.setAttribute('aria-live', 'polite');
+    timerText.setAttribute('aria-atomic', 'true');
+    timerText.className = 'font-mono tabular-nums';
+    timerText.textContent = formatTime(timeLeft);
+    timerWrapper.appendChild(timerIcon);
+    timerWrapper.appendChild(timerText);
+
+    // Question text
+    const questionText = document.createElement('h2');
+    questionText.className = 'text-2xl font-bold text-indigo-700 leading-snug select-text';
+    questionText.textContent = shuffledQuestions[currentQuestionIndex].question;
+
+    // Options container
+    const optionsContainer = document.createElement('div');
+    optionsContainer.className = 'grid grid-cols-1 sm:grid-cols-2 gap-4';
+
+    // Track selected option index
+    let selectedOptionIndex = null;
+
+    function clearSelection() {
+      selectedOptionIndex = null;
+      const buttons = optionsContainer.querySelectorAll('button');
+      buttons.forEach(btn => btn.classList.remove('bg-indigo-600', 'text-white', 'shadow-lg'));
+    }
+
+    // Create option buttons
+    shuffledQuestions[currentQuestionIndex].options.forEach((option, idx) => {
+      const optionBtn = document.createElement('button');
+      optionBtn.className = 'border border-indigo-400 rounded-lg p-3 text-left hover:bg-indigo-600 hover:text-white transition focus:outline-none focus:ring-4 focus:ring-indigo-300';
+      optionBtn.textContent = option;
+      optionBtn.type = 'button';
+      optionBtn.setAttribute('aria-pressed', 'false');
+      optionBtn.addEventListener('click', () => {
+        // Deselect all and select this
+        const buttons = optionsContainer.querySelectorAll('button');
+        buttons.forEach(b => {
+          b.classList.remove('bg-indigo-600', 'text-white', 'shadow-lg');
+          b.setAttribute('aria-pressed', 'false');
+        });
+        optionBtn.classList.add('bg-indigo-600', 'text-white', 'shadow-lg');
+        optionBtn.setAttribute('aria-pressed', 'true');
+        selectedOptionIndex = idx;
+        nextBtn.disabled = false;
+      });
+      optionsContainer.appendChild(optionBtn);
+    });
+
+    // Controls container
+    const controls = document.createElement('div');
+    controls.className = 'flex justify-between items-center mt-6';
+
+    // Skip Button
+    const skipBtn = document.createElement('button');
+    skipBtn.type = 'button';
+    skipBtn.className = 'inline-flex items-center space-x-2 px-4 py-2 rounded-lg border border-indigo-500 text-indigo-600 hover:bg-indigo-50 focus:outline-none focus:ring-4 focus:ring-indigo-300 font-semibold transition shadow';
+    skipBtn.setAttribute('aria-label', 'Skip question');
+    skipBtn.appendChild(createIcon('skip_next', 'text-indigo-600'));
+    const skipText = document.createElement('span');
+    skipText.textContent = 'Skip';
+    skipBtn.appendChild(skipText);
+    skipBtn.addEventListener('click', () => {
+      answeredQuestions++; // count as answered but no score
+      nextQuestion();
+    });
+
+    // Next Button
+    const nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.className = 'inline-flex items-center space-x-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-400 shadow disabled:opacity-50 disabled:cursor-not-allowed transition';
+    nextBtn.textContent = 'Next';
+    nextBtn.disabled = true;
+    nextBtn.addEventListener('click', () => {
+      // Check selected answer
+      if (selectedOptionIndex !== null) {
+        answeredQuestions++;
+        let correctIndex = shuffledQuestions[currentQuestionIndex].answerIndex;
+        if (selectedOptionIndex === correctIndex) {
+          score += QUESTION_MARKS;
+        }
+      }
+      nextQuestion();
+    });
+
+    controls.appendChild(skipBtn);
+    controls.appendChild(nextBtn);
+
+    card.appendChild(timerWrapper);
+    card.appendChild(questionText);
+    card.appendChild(optionsContainer);
+    card.appendChild(controls);
+
+    quizContainer.appendChild(card);
+
+    // Animate the card fade in nicely
+    card.classList.add('fade-enter');
+    setTimeout(() => card.classList.add('fade-enter-active'), 20);
+    setTimeout(() => card.classList.remove('fade-enter', 'fade-enter-active'), 600);
+
+    // Timer update
+    function updateTimer() {
+      timeLeft--;
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        finishQuiz();
+      } else {
+        timerText.textContent = formatTime(timeLeft);
+        if (timeLeft <= 10) {
+          timerText.classList.add('timer-warning');
+        }
+      }
+    }
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimer, 1000);
+  }
+
+  // Move to next question or finish
+  function nextQuestion() {
+    currentQuestionIndex++;
+    if (currentQuestionIndex >= shuffledQuestions.length) {
+      finishQuiz();
+    } else {
+      renderQuestion();
+      resetTimer();
+    }
+  }
+  // Reset timer for question
+  function resetTimer() {
+    timeLeft = QUIZ_TIME_SECONDS;
+  }
+
+  // Finish the quiz, stop timer and show results
+  function finishQuiz() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+    renderResults();
+  }
+
+  // Start the quiz
+  function startQuiz() {
+    // Reset states
+    score = 0;
+    answeredQuestions = 0;
+    currentQuestionIndex = 0;
+    timeLeft = QUIZ_TIME_SECONDS;
+    shuffledQuestions = shuffleArray(questions);
+    renderQuestion();
+  }
+
+  // Initialize UI with start screen
+  renderStart();
+
+  // Accessibility: allow keyboard navigation for skip and next buttons
+  document.addEventListener('keydown', (e) => {
+    // If quiz is active
+    if (shuffledQuestions.length && currentQuestionIndex < shuffledQuestions.length) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        const nextBtn = quizContainer.querySelector('button[disabled=false]');
+        if (nextBtn) {
+          e.preventDefault();
+          nextBtn.click();
+        }
+      }
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        const skipBtn = quizContainer.querySelector('button[aria-label="Skip question"]');
+        if (skipBtn) skipBtn.click();
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
+
